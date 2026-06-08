@@ -1,3 +1,8 @@
+<div class="banner" markdown>
+![pgEdge Labs](img/pgedge-labs-light.svg#only-light){ width="320" }
+![pgEdge Labs](img/pgedge-labs-dark.svg#only-dark){ width="320" }
+</div>
+
 # pg-healthcheck
 
 pg-healthcheck is an enterprise-grade PostgreSQL health diagnostics
