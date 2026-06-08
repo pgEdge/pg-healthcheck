@@ -1,3 +1,7 @@
+.banner {
+    text-align: center;
+}
+
 #logo_light_mode {
     display: var(--md-footer-logo-light-mode);
 }
