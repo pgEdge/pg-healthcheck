@@ -756,7 +756,7 @@ func g09OrphanedReplicationOrigins(ctx context.Context, db *pgxpool.Pool) []Find
 	const name = "Orphaned replication origins"
 
 	const q = `
-		SELECT o.roident, o.roname,
+		SELECT o.roname,
 		       COALESCE(s.remote_lsn::text, '') AS remote_lsn,
 		       COALESCE(s.local_lsn::text,  '') AS local_lsn
 		FROM   pg_replication_origin o
@@ -769,7 +769,6 @@ func g09OrphanedReplicationOrigins(ctx context.Context, db *pgxpool.Pool) []Find
 	defer rows.Close()
 
 	type origin struct {
-		ident     int
 		oname     string
 		remoteLSN string
 		localLSN  string
@@ -777,7 +776,7 @@ func g09OrphanedReplicationOrigins(ctx context.Context, db *pgxpool.Pool) []Find
 	var origins []origin
 	for rows.Next() {
 		var o origin
-		_ = rows.Scan(&o.ident, &o.oname, &o.remoteLSN, &o.localLSN)
+		_ = rows.Scan(&o.oname, &o.remoteLSN, &o.localLSN)
 		origins = append(origins, o)
 	}
 	if err := rows.Err(); err != nil {
