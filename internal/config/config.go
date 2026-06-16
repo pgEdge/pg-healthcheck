@@ -25,6 +25,7 @@ type Config struct {
 	WarnConnectionsPct  int           `yaml:"warn_connections_pct"`
 	CritConnectionsPct  int           `yaml:"critical_connections_pct"`
 	IdleInTxWarnSec     int           `yaml:"idle_in_tx_warn_seconds"`
+	IdleConnWarnSec     int           `yaml:"idle_conn_warn_seconds"`
 
 	// ── TLS ────────────────────────────────────────────────
 	SSLCertWarnDays int `yaml:"ssl_cert_warn_days"`
@@ -120,6 +121,7 @@ func Defaults() *Config {
 		WarnConnectionsPct:         75,
 		CritConnectionsPct:         90,
 		IdleInTxWarnSec:            30,
+		IdleConnWarnSec:            3600,
 		SSLCertWarnDays:            30,
 		SSLCertCritDays:            7,
 		BackrestConfig:             "/etc/pgbackrest/pgbackrest.conf",

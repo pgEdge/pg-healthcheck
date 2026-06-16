@@ -163,7 +163,7 @@ func teardown(t *testing.T, pool *pgxpool.Pool) {
 	pool.Exec(ctx, `DROP ROLE IF EXISTS _hc_test_super`) //nolint:gosec // nosemgrep
 	// Drop lock-diagnostic test roles
 	pool.Exec(ctx, `DROP ROLE IF EXISTS _hc_test_blocker`) //nolint:gosec // nosemgrep
-	pool.Exec(ctx, `DROP ROLE IF EXISTS _hc_test_waiter`) //nolint:gosec // nosemgrep
+	pool.Exec(ctx, `DROP ROLE IF EXISTS _hc_test_waiter`)  //nolint:gosec // nosemgrep
 	// Revoke public schema create
 	pool.Exec(ctx, `REVOKE CREATE ON SCHEMA public FROM PUBLIC`) //nolint:gosec // nosemgrep
 	// Drop all test objects
@@ -228,9 +228,9 @@ func TestG05_PreparedTransactions(t *testing.T) {
 	}
 	defer conn.Release()
 	ctx := context.Background()
-	conn.Exec(ctx, `ROLLBACK PREPARED '_hc_test_prepared_tx'`) //nolint:gosec // nosemgrep -- clean prior run, static SQL
-	conn.Exec(ctx, `BEGIN`)                                    //nolint:gosec // nosemgrep
-	conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS _hc_test.pt_marker(id int)`) //nolint:gosec // nosemgrep
+	conn.Exec(ctx, `ROLLBACK PREPARED '_hc_test_prepared_tx'`)                              //nolint:gosec // nosemgrep -- clean prior run, static SQL
+	conn.Exec(ctx, `BEGIN`)                                                                 //nolint:gosec // nosemgrep
+	conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS _hc_test.pt_marker(id int)`)                 //nolint:gosec // nosemgrep
 	if _, err := conn.Exec(ctx, `PREPARE TRANSACTION '_hc_test_prepared_tx'`); err != nil { //nolint:gosec // nosemgrep
 		t.Skipf("PREPARE TRANSACTION not allowed (max_prepared_transactions=0?): %v", err)
 	}

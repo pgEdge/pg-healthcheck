@@ -9,6 +9,7 @@ pg_isready_warn_ms:          500
 warn_connections_pct:        75
 critical_connections_pct:    90
 idle_in_tx_warn_seconds:     30
+idle_conn_warn_seconds:      3600   # WARN if an idle (not in-transaction) connection exceeds this age (G01-010)
 
 # ── TLS ───────────────────────────────────────────────────────
 ssl_cert_warn_days:          30

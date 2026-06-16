@@ -42,6 +42,7 @@ func (g *G14WALGrowth) Run(ctx context.Context, db *pgxpool.Pool, cfg *config.Co
 	var f []Finding
 
 	f = append(f, g14WALDirSize(ctx, db, cfg)...)
+	f = append(f, g14EphemeralStateFile(cfg)...)
 
 	// LSN sample 1 — taken before the middle checks
 	lsn1, t1 := g14SampleLSN(ctx, db)
@@ -85,6 +86,44 @@ func g14SampleLSN(ctx context.Context, db *pgxpool.Pool) (uint64, time.Time) {
 	var hi, lo uint64
 	_, _ = fmt.Sscanf(lsnStr, "%X/%X", &hi, &lo)
 	return hi<<32 | lo, ts
+}
+
+// ── G14-016  Ephemeral WAL rate baseline state file ───────────────────────────
+//
+// The WAL rate baseline (G14-003) is only as useful as the history behind it.
+// When the state file lives in /tmp or /var/tmp it is cleared on every reboot,
+// silently wiping the rolling average. Operators are then unaware that the
+// baseline comparison in G14-003 is starting from scratch and will not flag
+// abnormal WAL rates until enough new samples accumulate.
+func g14EphemeralStateFile(cfg *config.Config) []Finding {
+	const id = "G14-016"
+	const name = "WAL rate state file persistence"
+
+	stateFile := cfg.WALRateStateFile
+	if stateFile == "" {
+		stateFile = "/tmp/pg-healthcheck_wal_rate.json"
+	}
+
+	ephemeral := false
+	for _, prefix := range []string{"/tmp/", "/tmp", "/var/tmp/", "/var/tmp"} {
+		if strings.HasPrefix(stateFile, prefix) {
+			ephemeral = true
+			break
+		}
+	}
+	if !ephemeral {
+		return []Finding{NewOK(id, g14, name,
+			fmt.Sprintf("State file is in a persistent location: %s", stateFile),
+			"https://www.postgresql.org/docs/current/wal-configuration.html")}
+	}
+
+	return []Finding{NewWarn(id, g14, name,
+		fmt.Sprintf("WAL rate state file is in an ephemeral path: %s", stateFile),
+		"Set wal_rate_state_file in healthcheck.yaml to a persistent path, e.g. /var/lib/pg-healthcheck/wal_rate.json",
+		"The rolling WAL baseline (G14-003) is reset on every system reboot because /tmp is cleared at boot. "+
+			"After a reboot, G14-003 will report 'Collecting baseline' until enough samples accumulate again, "+
+			"meaning abnormal WAL rates go undetected during that window.",
+		"https://www.postgresql.org/docs/current/wal-configuration.html")}
 }
 
 // ── G14-001  pg_wal directory size ────────────────────────────────────────────

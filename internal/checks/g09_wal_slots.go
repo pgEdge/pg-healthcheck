@@ -35,6 +35,7 @@ func (g *G09WALSlots) Run(ctx context.Context, db *pgxpool.Pool, cfg *config.Con
 	f = append(f, g09SubscriptionRelState(ctx, db)...)
 	f = append(f, g09StreamingLagTime(ctx, db)...)
 	f = append(f, g09LogicalDecodingWorkMem(ctx, db)...)
+	f = append(f, g09OrphanedReplicationOrigins(ctx, db)...)
 	return f, nil
 }
 
@@ -737,6 +738,138 @@ func g09StreamingLagTime(ctx context.Context, db *pgxpool.Pool) []Finding {
 	return []Finding{NewOK("G09-014", g09, "Streaming replication lag (time)",
 		fmt.Sprintf("%d standby(ies) — lag within acceptable range", len(all)),
 		"https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-REPLICATION-VIEW")}
+}
+
+// G09-016 Orphaned replication origins
+//
+// pg_replication_origin stores named progress-tracking origins used by logical
+// replication and Spock. In Spock environments each subscription creates an
+// origin; when subscriptions are dropped and recreated the old origin is often
+// left behind. These accumulate silently and can contribute to WAL retention
+// by anchoring the origin LSN inside the logical decoding machinery.
+//
+// On Spock clusters the check matches each origin against active subscriptions
+// by name. On plain PostgreSQL it reports all origins as INFO so operators can
+// verify each one is intentional.
+func g09OrphanedReplicationOrigins(ctx context.Context, db *pgxpool.Pool) []Finding {
+	const id = "G09-016"
+	const name = "Orphaned replication origins"
+
+	const q = `
+		SELECT o.roname,
+		       COALESCE(s.remote_lsn::text, '') AS remote_lsn,
+		       COALESCE(s.local_lsn::text,  '') AS local_lsn
+		FROM   pg_replication_origin o
+		LEFT   JOIN pg_replication_origin_status s ON s.local_id = o.roident
+		ORDER  BY o.roname`
+	rows, err := db.Query(ctx, q)
+	if err != nil {
+		return []Finding{NewSkip(id, g09, name, err.Error())}
+	}
+	defer rows.Close()
+
+	type origin struct {
+		oname     string
+		remoteLSN string
+		localLSN  string
+	}
+	var origins []origin
+	for rows.Next() {
+		var o origin
+		_ = rows.Scan(&o.oname, &o.remoteLSN, &o.localLSN)
+		origins = append(origins, o)
+	}
+	if err := rows.Err(); err != nil {
+		return []Finding{NewSkip(id, g09, name, "scan error: "+err.Error())}
+	}
+
+	if len(origins) == 0 {
+		return []Finding{NewOK(id, g09, name,
+			"No replication origins present",
+			"https://www.postgresql.org/docs/current/replication-origins.html")}
+	}
+
+	// Non-Spock path: list all origins as INFO so the operator can review.
+	if !spockInstalled(ctx, db) {
+		var lines []string
+		for _, o := range origins {
+			lsn := o.remoteLSN
+			if lsn == "" {
+				lsn = "none"
+			}
+			lines = append(lines, fmt.Sprintf("%-40s  remote_lsn=%s", o.oname, lsn))
+		}
+		return []Finding{NewInfo(id, g09, name,
+			fmt.Sprintf("%d replication origin(s) found", len(origins)),
+			"Verify each origin has an active consumer; remove unused ones with pg_drop_replication_origin('name').",
+			strings.Join(lines, "\n"),
+			"https://www.postgresql.org/docs/current/replication-origins.html")}
+	}
+
+	// Spock path: match each origin against active subscription names.
+	// Spock encodes the subscription name into the origin name, so a substring
+	// match is a reliable heuristic for determining ownership.
+	var subNames []string
+	if spockExists(ctx, db, "subscription") {
+		srows, err := db.Query(ctx, "SELECT sub_name FROM spock.subscription")
+		if err == nil {
+			for srows.Next() {
+				var s string
+				_ = srows.Scan(&s)
+				subNames = append(subNames, s)
+			}
+			srows.Close()
+		}
+	}
+
+	var orphanLines, activeLines []string
+	for _, o := range origins {
+		lsn := o.remoteLSN
+		if lsn == "" {
+			lsn = "none"
+		}
+		line := fmt.Sprintf("%-40s  remote_lsn=%s", o.oname, lsn)
+		matched := false
+		for _, sn := range subNames {
+			if strings.Contains(o.oname, sn) {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			activeLines = append(activeLines, line)
+		} else {
+			orphanLines = append(orphanLines, line+" ← no matching subscription")
+		}
+	}
+
+	if len(orphanLines) == 0 {
+		return []Finding{NewOK(id, g09, name,
+			fmt.Sprintf("All %d origin(s) matched to active Spock subscriptions", len(origins)),
+			"https://www.postgresql.org/docs/current/replication-origins.html")}
+	}
+
+	cleanup := "-- Drop each orphaned origin:\n"
+	for _, o := range origins {
+		matched := false
+		for _, sn := range subNames {
+			if strings.Contains(o.oname, sn) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			cleanup += fmt.Sprintf("SELECT pg_drop_replication_origin('%s');\n", o.oname)
+		}
+	}
+
+	detail := strings.Join(append(orphanLines, activeLines...), "\n") + "\n\n" + cleanup
+	return []Finding{NewWarn(id, g09, name,
+		fmt.Sprintf("%d origin(s) have no matching Spock subscription", len(orphanLines)),
+		"Orphaned origins accumulate when Spock subscriptions are dropped and recreated. "+
+			"Drop them with pg_drop_replication_origin() to prevent silent WAL retention and origin table bloat.",
+		detail,
+		"https://www.postgresql.org/docs/current/replication-origins.html")}
 }
 
 // G09-015 logical_decoding_work_mem — spill-to-disk threshold for logical slots

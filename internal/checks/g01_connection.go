@@ -43,6 +43,7 @@ func (g *G01Connection) Run(ctx context.Context, db *pgxpool.Pool, cfg *config.C
 	f = append(f, g01IdleInTx(ctx, db, cfg)...)
 	f = append(f, g01PerDBConns(ctx, db, cfg)...)
 	f = append(f, g01HBATrust(ctx, db)...)
+	f = append(f, g01LongIdleConn(ctx, db, cfg)...)
 	return f, nil
 }
 
@@ -279,6 +280,48 @@ func g01PerDBConns(ctx context.Context, db *pgxpool.Pool, cfg *config.Config) []
 			"https://www.postgresql.org/docs/current/monitoring-stats.html")}
 	}
 	return findings
+}
+
+// G01-010 Long-lived idle connections
+// Distinct from G01-007 (idle in transaction): these connections hold no open
+// transaction but still consume a backend slot and may retain an older snapshot,
+// preventing horizon advancement. Common symptom of a leaking application pool.
+func g01LongIdleConn(ctx context.Context, db *pgxpool.Pool, cfg *config.Config) []Finding {
+	const q = `SELECT pid, usename, datname, application_name,
+		COALESCE(client_addr::text, 'local') AS client_addr,
+		EXTRACT(EPOCH FROM (now() - state_change))::int AS idle_secs
+		FROM pg_stat_activity
+		WHERE state = 'idle'
+		  AND backend_type = 'client backend'
+		  AND state_change < now() - ($1 * interval '1 second')
+		ORDER BY idle_secs DESC
+		LIMIT 10`
+	rows, err := db.Query(ctx, q, cfg.IdleConnWarnSec)
+	if err != nil {
+		return []Finding{NewSkip("G01-010", g01, "Long-lived idle connections", err.Error())}
+	}
+	defer rows.Close()
+	var found []string
+	for rows.Next() {
+		var pid, idleSecs int
+		var user, dbn, appName, addr string
+		_ = rows.Scan(&pid, &user, &dbn, &appName, &addr, &idleSecs)
+		found = append(found, fmt.Sprintf("PID %d (%s) %s@%s app=%s idle=%s",
+			pid, addr, user, dbn, appName, g14FmtSecs(int64(idleSecs))))
+	}
+	if err := rows.Err(); err != nil {
+		return []Finding{NewSkip("G01-010", g01, "Long-lived idle connections", "scan error: "+err.Error())}
+	}
+	if len(found) == 0 {
+		return []Finding{NewOK("G01-010", g01, "Long-lived idle connections",
+			fmt.Sprintf("No idle connections older than %s", g14FmtSecs(int64(cfg.IdleConnWarnSec))),
+			"https://www.postgresql.org/docs/current/runtime-config-client.html")}
+	}
+	return []Finding{NewWarn("G01-010", g01, "Long-lived idle connections",
+		fmt.Sprintf("%d idle connection(s) older than %s", len(found), g14FmtSecs(int64(cfg.IdleConnWarnSec))),
+		"Review application connection pool idle-timeout settings; terminate stale connections with pg_terminate_backend(pid).",
+		strings.Join(found, "\n"),
+		"https://www.postgresql.org/docs/current/runtime-config-client.html")}
 }
 
 // G01-009 pg_hba TRUST on non-loopback
