@@ -35,7 +35,7 @@ monitoring system that accepts structured data.
 The following software must be present before building or running
 pg-healthcheck:
 
-- Go 1.23 or later. Install with `brew install go` on macOS or follow
+- Go 1.26.10 or later. Install with `brew install go` on macOS or follow
   the [Go installation guide](https://go.dev/doc/install).
 - PostgreSQL 13 or later as the target database. Checks that require
   PostgreSQL 14, 15, 16, or 17 features skip gracefully on older

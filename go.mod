@@ -1,6 +1,6 @@
 module github.com/pgedge/pg-healthcheck
 
-go 1.25.9
+go 1.26.10
 
 require (
 	github.com/fatih/color v1.19.0

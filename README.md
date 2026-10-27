@@ -193,7 +193,7 @@ cd pg-healthcheck
 go build -o pg-healthcheck ./cmd/pg-healthcheck/
 ```
 
-Requires Go 1.25+. Install with `brew install go` on macOS or `apt install golang-go` on Ubuntu.
+Requires Go 1.26.10+. Install with `brew install go` on macOS or `apt install golang-go` on Ubuntu.
 
 ### Run against a local database
 
@@ -986,7 +986,7 @@ pg-healthcheck/
 
 ## Requirements
 
-- **Go 1.25+** — install with `brew install go`
+- **Go 1.26.10+** — install with `brew install go`
 - **PostgreSQL 13+** — checks that need PG 14/15/16/17 skip gracefully on older versions
 - **`pg_monitor` role** — recommended minimum privilege; grants access to all catalog views and `pg_stat_*` functions without superuser. Some checks (G11 security inspection, `amcheck` index verification) benefit from superuser privileges and will skip or return partial results without them
 - **pgBackRest** — G02 checks skip gracefully with a clear message if pgBackRest is not installed; no config needed on non-pgBackRest environments
