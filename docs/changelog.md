@@ -31,6 +31,8 @@ adheres to
   instead of cumulative `failed_count`, so old resolved failures no
   longer trigger perpetual alerts. A failure within the last hour
   triggers CRITICAL; a failure within 24 hours triggers WARN.
+- Go raised to 1.26.10 so that builds distrust the compromised eMudhra
+  intermediate CAs (CVE-2026-111943).
 
 ## [0.2.0] - 2026-04-22
 
