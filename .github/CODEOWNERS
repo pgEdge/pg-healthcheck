@@ -1,0 +1,25 @@
+# Code owners under the Code Review and Commit Policy v2.0.
+# pg-healthcheck is Tier 1. The last matching line wins.
+
+# Workflows, release, packaging and signing: a code owner or build-packaging.
+/.github/workflows/  @ahsanhadi @pgEdge/build-packaging
+/.github/actions/  @ahsanhadi @pgEdge/build-packaging
+action.yml  @ahsanhadi @pgEdge/build-packaging
+action.yaml  @ahsanhadi @pgEdge/build-packaging
+.goreleaser*.yml  @ahsanhadi @pgEdge/build-packaging
+.goreleaser*.yaml  @ahsanhadi @pgEdge/build-packaging
+*.spec  @ahsanhadi @pgEdge/build-packaging
+debian/  @ahsanhadi @pgEdge/build-packaging
+rpm/  @ahsanhadi @pgEdge/build-packaging
+packaging/  @ahsanhadi @pgEdge/build-packaging
+release*.sh  @ahsanhadi @pgEdge/build-packaging
+sign*.sh  @ahsanhadi @pgEdge/build-packaging
+sign*.py  @ahsanhadi @pgEdge/build-packaging
+Dockerfile*  @ahsanhadi @pgEdge/build-packaging
+
+# Ownership and AI review configuration: code owners only.
+/CODEOWNERS  @ahsanhadi
+/.github/CODEOWNERS  @ahsanhadi
+/docs/CODEOWNERS  @ahsanhadi
+/REVIEW.md  @ahsanhadi
+/.coderabbit.yaml  @ahsanhadi
